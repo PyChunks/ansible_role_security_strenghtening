@@ -1,0 +1,66 @@
+---
+# tasks file for ansible_role_security_strenghtening
+# ansible-galaxy collection install community.general
+
+# Need to update to jinja template at some point
+# from ansible documentation
+
+- name: Create user
+  ansible.builtin.user:
+    name: "{{ ssh_user }}"
+    password: "{{ item | password_hash('sha512') }}"
+    shell: /bin/bash
+    groups: sudo,www-data
+    append: true
+  with_items:
+    - "{{ ssh_user_pass }}"
+
+- name: Copy public key to user's authorized_key
+  ansible.posix.authorized_key:
+    user: "{{ ssh_user }}"
+    state: present
+    key: "{{ item }}"
+  with_file:
+    - "{{ pubkey_path }}"
+
+- name: Password based logins are disabled only public key based logins are allowed.
+  ansible.builtin.lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: "{{ item.regexp }}"
+    line: "{{ item.line }}"
+    # validate: sshd -T 
+  with_items:
+    - { regexp: '^#?AuthenticationMethods', line: 'AuthenticationMethods publickey' }
+    - { regexp: '^#?PasswordAuthentication', line: 'PasswordAuthentication no' }
+    - { regexp: '^#?ChallengeResponseAuthentication', line: 'ChallengeResponseAuthentication no' }
+    - { regexp: '^#?PubkeyAuthentication', line: 'PubkeyAuthentication yes' }
+  notify: Restart sshd
+
+- name: Disable Root Login
+  ansible.builtin.lineinfile:
+    dest: /etc/ssh/sshd_config
+    regexp: '^PermitRootLogin'
+    line: 'PermitRootLogin No'
+    # validate: sshd -T 
+  notify: Restart sshd
+
+- name: Only allow logins from specific user(s)
+  ansible.builtin.lineinfile: dest=/etc/ssh/sshd_config regexp='^AllowUsers' line='AllowUsers {{ ssh_user }}'
+  notify: Restart sshd
+
+
+- name: Install banning tools
+  ansible.builtin.package:
+    name:
+      - sshguard
+      - fail2ban
+    state: present
+
+- name: Ensure banning services are running and enabled
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  with_items:
+    - sshguard
+    - fail2ban
