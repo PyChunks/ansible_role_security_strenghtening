@@ -14,6 +14,7 @@ ansible-galaxy collection install ansible.posix
 
 Role Variables
 --------------
+
 Variables that need to be set:
 ```
 ssh_user:
@@ -30,6 +31,7 @@ pubkey_path: ~/.ssh/id_rsa.pub
 ```
 
 Location of the ssh publickey you wish to use to connect to the remote server.
+
 Dependencies
 ------------
 
